@@ -1,0 +1,250 @@
+/* =========================================
+   1. CSS VARIABLES (Light & Dark Modes)
+   ========================================= */
+:root {
+  /* Light Mode (Default) */
+  --bg: #F4F6F9;
+  --surface: #FFFFFF;
+  --surface-hover: #F9FAFB;
+  --text-primary: #111827;
+  --text-secondary: #6B7280;
+  --border: #E5E7EB;
+  
+  /* Single Accent Color (Professional Blue) */
+  --accent: #2563EB; 
+  --accent-hover: #1D4ED8;
+  --accent-soft: #EFF6FF;
+  
+  --success: #10B981;
+  --danger: #EF4444;
+  
+  /* Organic feel: soft shadows and rounded corners */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+}
+
+[data-theme="dark"] {
+  --bg: #0F172A;
+  --surface: #1E293B;
+  --surface-hover: #334155;
+  --text-primary: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --border: #334155;
+  
+  --accent: #3B82F6;
+  --accent-hover: #60A5FA;
+  --accent-soft: #1E3A8A;
+  
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+}
+
+/* =========================================
+   2. BASE & TYPOGRAPHY
+   ========================================= */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: var(--bg);
+  color: var(--text-primary);
+  line-height: 1.5;
+  transition: background-color 0.3s ease, color 0.3s ease;
+  min-height: 100vh;
+}
+
+h1, h2, h3, h4 { font-weight: 600; letter-spacing: -0.01em; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* =========================================
+   3. LAYOUT & HEADER
+   ========================================= */
+.app-header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  backdrop-filter: blur(8px);
+}
+
+.header-left { display: flex; align-items: center; gap: 24px; }
+.logo { font-size: 18px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 8px; }
+.logo-dot { width: 8px; height: 8px; background: var(--accent); border-radius: 50%; }
+
+.user-info { display: flex; align-items: center; gap: 12px; font-size: 14px; color: var(--text-secondary); }
+.user-avatar {
+  width: 32px; height: 32px; border-radius: 50%; 
+  background: var(--accent-soft); color: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 600; font-size: 13px;
+}
+
+.header-right { display: flex; align-items: center; gap: 16px; }
+
+/* Theme Toggle Button */
+.theme-toggle {
+  background: var(--surface-hover);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  width: 56px;
+  height: 28px;
+  position: relative;
+  transition: all 0.3s ease;
+}
+.theme-toggle::before {
+  content: "☀️";
+  font-size: 12px;
+  position: absolute;
+  left: 6px;
+  transition: all 0.3s ease;
+}
+.theme-toggle::after {
+  content: "🌙";
+  font-size: 12px;
+  position: absolute;
+  right: 6px;
+  opacity: 0.4;
+  transition: all 0.3s ease;
+}
+.theme-toggle .knob {
+  width: 20px; height: 20px;
+  background: var(--surface);
+  border-radius: 50%;
+  box-shadow: var(--shadow-sm);
+  position: absolute;
+  left: 4px;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+[data-theme="dark"] .theme-toggle .knob { transform: translateX(26px); }
+[data-theme="dark"] .theme-toggle::before { opacity: 0.4; }
+[data-theme="dark"] .theme-toggle::after { opacity: 1; }
+
+/* =========================================
+   4. MAIN CONTENT & CARDS
+   ========================================= */
+main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 32px;
+}
+
+.page-title { font-size: 24px; margin-bottom: 4px; }
+.page-subtitle { color: var(--text-secondary); font-size: 14px; margin-bottom: 32px; }
+
+/* Management App Grid */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+  margin-bottom: 32px;
+}
+
+/* Clean, un-tilted cards */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.card:hover { box-shadow: var(--shadow-md); border-color: var(--accent); }
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.card-title { font-size: 16px; font-weight: 600; }
+.card-badge {
+  font-size: 12px;
+  padding: 4px 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 20px;
+  font-weight: 500;
+}
+
+/* =========================================
+   5. FORMS & BUTTONS
+   ========================================= */
+.btn {
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 10px 18px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-ghost { background: transparent; color: var(--text-primary); border-color: var(--border); }
+.btn-ghost:hover { background: var(--surface-hover); }
+
+input, select, textarea {
+  font-family: inherit;
+  font-size: 14px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  width: 100%;
+  transition: border-color 0.15s ease;
+}
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+/* =========================================
+   6. LISTS & TABLES
+   ========================================= */
+.list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+.list-item:last-child { border-bottom: none; }
+.list-item-title { font-weight: 500; font-size: 14px; }
+.list-item-meta { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+
+/* =========================================
+   7. RESPONSIVE
+   ========================================= */
+@media (max-width: 768px) {
+  .app-header { padding: 16px; }
+  main { padding: 20px; }
+  .dashboard-grid { grid-template-columns: 1fr; }
+  .user-info span { display: none; } /* Hide name on small screens, keep avatar */
+}

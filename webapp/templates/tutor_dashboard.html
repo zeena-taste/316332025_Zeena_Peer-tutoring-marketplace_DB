@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}Tutor Dashboard — {{ tutor_name }}{% endblock %}
+
+{% block content %}
+<main>
+  <h1 class="page-title">Tutor Dashboard</h1>
+  <p class="page-subtitle">Manage your availability, view bookings, and track your performance.</p>
+
+  <div class="dashboard-grid">
+    <!-- Availability Card -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Add Availability</h2>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 16px;">
+        <div>
+          <label for="date">Date</label>
+          <input type="date" id="date" required>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div>
+            <label for="start">Starts</label>
+            <input type="time" id="start" required>
+          </div>
+          <div>
+            <label for="end">Ends</label>
+            <input type="time" id="end" required>
+          </div>
+        </div>
+        <!-- Changed to type="button" so it doesn't submit a form -->
+        <button type="button" id="add-slot-btn" class="btn btn-primary">Add Slot</button>
+      </div>
+    </div>
+
+    <!-- Confirmed Sessions Card -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Upcoming Confirmed</h2>
+        <span class="card-badge" id="confirmed-count">0</span>
+      </div>
+      <div id="sessions-list" class="list-container">
+        <p style="color: var(--text-secondary); font-size: 14px;">Loading...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Insights Section -->
+  <h2 style="font-size: 18px; margin: 32px 0 16px;">Marketplace Insights</h2>
+  <div class="dashboard-grid">
+    <div class="card">
+      <h3 class="card-title" style="margin-bottom: 16px;">Your Rating</h3>
+      <div id="tutor-rating-display" style="font-size: 24px; font-weight: 700; color: var(--accent);">-</div>
+      <div id="recent-reviews" style="margin-top: 12px; font-size: 13px; color: var(--text-secondary);"></div>
+    </div>
+    <div class="card">
+      <h3 class="card-title" style="margin-bottom: 16px;">Platform Stats</h3>
+      <p style="color: var(--text-secondary); font-size: 14px;">Chart placeholders</p>
+    </div>
+  </div>
+</main>
+
+<script>
+  const tutorId = {{ tutor_id }};
+
+  // 1. Load Sessions (Calls /api/tutor/<id>/sessions)
+  async function loadSessions() {
+    const res = await fetch(`/api/tutor/${tutorId}/sessions`);
+    const sessions = await res.json();
+    
+    const list = document.getElementById('sessions-list');
+    const count = document.getElementById('confirmed-count');
+    count.textContent = sessions.length;
+
+    if (sessions.length === 0) {
+      list.innerHTML = '<p style="color: var(--text-secondary); font-size: 14px;">No confirmed sessions yet.</p>';
+    } else {
+      list.innerHTML = sessions.map(s => `
+        <div class="list-item">
+          <div>
+            <div class="list-item-title">${s.student_name}</div>
+            <div class="list-item-meta">${s.slot_date} • ${s.start_time} - ${s.end_time}</div>
+          </div>
+        </div>
+      `).join('');
+    }
+  }
+
+  // 2. Load Rating (Calls /api/tutor/<id>/rating)
+  async function loadRating() {
+    const res = await fetch(`/api/tutor/${tutorId}/rating`);
+    const data = await res.json();
+    
+    document.getElementById('tutor-rating-display').textContent = `★ ${data.avg_rating || 'New'}`;
+    
+    const reviews = document.getElementById('recent-reviews');
+    if (data.recent && data.recent.length > 0) {
+      reviews.innerHTML = data.recent.map(r => `
+        <div style="margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--border);">
+          <strong>${r.score}/5</strong> - ${r.comments || 'No comment'}
+        </div>
+      `).join('');
+    } else {
+      reviews.innerHTML = 'No reviews yet.';
+    }
+  }
+
+  // 3. Add Availability (Calls /api/availability with JSON)
+  document.getElementById('add-slot-btn').addEventListener('click', async () => {
+    const date = document.getElementById('date').value;
+    const start = document.getElementById('start').value;
+    const end = document.getElementById('end').value;
+
+    if (!date || !start || !end) return alert("Please fill all fields");
+
+    const res = await fetch('/api/availability', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'}, // FIXED: Sends JSON instead of form data
+      body: JSON.stringify({
+        tutor_id: tutorId,
+        slot_date: date,
+        start_time: start,
+        end_time: end
+      })
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      alert('Slot added!');
+      document.getElementById('date').value = '';
+      document.getElementById('start').value = '';
+      document.getElementById('end').value = '';
+    } else {
+      alert('Error: ' + data.message);
+    }
+  });
+
+  // Initial load
+  loadSessions();
+  loadRating();
+</script>
+{% endblock %}

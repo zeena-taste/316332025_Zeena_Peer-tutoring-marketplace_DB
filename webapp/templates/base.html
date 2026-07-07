@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Dashboard{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-left">
+      <!-- Added a link to the logo so it acts as a home button -->
+      <a href="/" class="logo" style="text-decoration: none; color: inherit;">
+        <span class="logo-dot"></span> TutorHub
+      </a>
+    </div>
+    
+    <div class="header-right">
+      <!-- Theme Toggle -->
+      <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+        <span class="knob"></span>
+      </button>
+      
+      <!-- User Info (Safely check if user variables exist) -->
+      {% if student_name is defined or tutor_name is defined %}
+      <div class="user-info">
+        <span>
+          {% if student_name is defined %}
+            {{ student_name }}
+          {% else %}
+            {{ tutor_name }}
+          {% endif %}
+        </span>
+        <div class="user-avatar">
+          {% if student_name is defined %}
+            {{ student_name[0] }}
+          {% else %}
+            {{ tutor_name[0] }}
+          {% endif %}
+        </div>
+        <!-- Switch button goes back to login -->
+        <a href="{{ url_for('login') }}" class="btn btn-ghost" style="padding: 6px 12px; font-size: 13px;">Switch</a>
+      </div>
+      {% endif %}
+    </div>
+  </header>
+
+  {% block content %}{% endblock %}
+
+  <!-- Theme Toggle Script -->
+  <script>
+    const themeToggle = document.getElementById('theme-toggle');
+    const currentTheme = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-theme', currentTheme);
+
+    if (themeToggle) {
+      themeToggle.addEventListener('click', () => {
+        const theme = document.documentElement.getAttribute('data-theme');
+        const newTheme = theme === 'light' ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', newTheme);
+        localStorage.setItem('theme', newTheme);
+      });
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% block title %}Student Dashboard — {{ student_name }}{% endblock %}
+
+{% block content %}
+<main>
+  <h1 class="page-title">Welcome back, {{ student_name }}</h1>
+  <p class="page-subtitle">Manage your tutoring sessions and find help for your courses.</p>
+
+  <div class="dashboard-grid">
+    <!-- Find a Tutor Card -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Find a Tutor</h2>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 16px;">
+        <div>
+          <label for="subject-select">Choose a subject</label>
+          <select id="subject-select" required>
+            <option value="" disabled selected>Select a course...</option>
+            {% for s in subjects %}
+              <!-- FIXED: Using subject_id as the value -->
+              <option value="{{ s.subject_id }}">{{ s.subject_name }} ({{ s.subject_code }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="button" id="search-btn" class="btn btn-primary">Search Tutors</button>
+      </div>
+      
+      <!-- Tutor results will appear here dynamically -->
+      <div id="tutor-results" style="margin-top: 20px; display: flex; flex-direction: column; gap: 12px;"></div>
+    </div>
+
+    <!-- Upcoming Sessions Card -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Upcoming Sessions</h2>
+        <span class="card-badge" id="upcoming-count">0</span>
+      </div>
+      <div id="upcoming-list" class="list-container">
+        <p style="color: var(--text-secondary); font-size: 14px;">Loading...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rate Sessions Section -->
+  <div class="card" style="margin-top: 24px;">
+    <div class="card-header">
+      <h2 class="card-title">Rate a Completed Session</h2>
+    </div>
+    <div id="rating-list" class="list-container">
+      <p style="color: var(--text-secondary); font-size: 14px;">Loading...</p>
+    </div>
+  </div>
+</main>
+
+<script>
+  const studentId = {{ student_id }};
+
+  // 1. Load Bookings (Upcoming & Awaiting Rating)
+  async function loadBookings() {
+    const res = await fetch(`/api/student/${studentId}/bookings`);
+    const data = await res.json();
+    
+    // Upcoming
+    const upcomingList = document.getElementById('upcoming-list');
+    const upcomingCount = document.getElementById('upcoming-count');
+    upcomingCount.textContent = data.upcoming.length;
+    
+    if (data.upcoming.length === 0) {
+      upcomingList.innerHTML = '<p style="color: var(--text-secondary); font-size: 14px;">No upcoming sessions.</p>';
+    } else {
+      upcomingList.innerHTML = data.upcoming.map(s => `
+        <div class="list-item">
+          <div>
+            <div class="list-item-title">${s.tutor_name}</div>
+            <div class="list-item-meta">${s.slot_date} at ${s.start_time}</div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Awaiting Rating
+    const ratingList = document.getElementById('rating-list');
+    if (data.awaiting_rating.length === 0) {
+      ratingList.innerHTML = '<p style="color: var(--text-secondary); font-size: 14px;">No sessions awaiting rating.</p>';
+    } else {
+      ratingList.innerHTML = data.awaiting_rating.map(s => `
+        <div class="list-item">
+          <div>
+            <div class="list-item-title">Session with ${s.tutor_name}</div>
+            <div class="list-item-meta">${s.slot_date} at ${s.start_time}</div>
+          </div>
+          <button class="btn btn-ghost" onclick="rateSession(${s.session_id})">Rate</button>
+        </div>
+      `).join('');
+    }
+  }
+
+  // 2. Search Tutors (Calls /api/tutors)
+  document.getElementById('search-btn').addEventListener('click', async () => {
+    const subjectId = document.getElementById('subject-select').value;
+    if (!subjectId) return alert("Please select a subject");
+
+    const res = await fetch(`/api/tutors?subject_id=${subjectId}`);
+    const tutors = await res.json();
+    const container = document.getElementById('tutor-results');
+    
+    if (tutors.length === 0) {
+      container.innerHTML = '<p style="color: var(--text-secondary); font-size: 14px;">No tutors found for this subject.</p>';
+      return;
+    }
+
+    container.innerHTML = tutors.map(t => `
+      <div style="padding: 12px; border: 1px solid var(--border); border-radius: 8px;">
+        <div style="font-weight: 600;">${t.full_name} <span style="color: var(--text-secondary); font-weight: 400; font-size: 13px;">• ★ ${t.avg_rating || 'New'}</span></div>
+        <div style="font-size: 13px; color: var(--text-secondary); margin: 4px 0;">${t.bio || 'No bio'}</div>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
+          ${t.slots.map(slot => `
+            <button class="btn btn-ghost" style="font-size: 12px; padding: 6px 10px;" 
+              onclick="bookSlot(${t.tutor_id}, ${slot.slot_id}, ${subjectId})">
+              ${slot.slot_date} ${slot.start_time}
+            </button>
+          `).join('')}
+        </div>
+      </div>
+    `).join('');
+  });
+
+  // 3. Book Slot (Calls /api/bookings with JSON)
+  async function bookSlot(tutorId, slotId, subjectId) {
+    const res = await fetch('/api/bookings', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        student_id: studentId,
+        tutor_id: tutorId,
+        slot_id: slotId,
+        subject_id: subjectId
+      })
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      alert('Booked successfully!');
+      loadBookings();
+      document.getElementById('search-btn').click(); // Refresh tutor list
+    } else {
+      alert('Error: ' + data.message);
+    }
+  }
+
+  // 4. Rate Session (Calls /api/ratings with JSON)
+  async function rateSession(sessionId) {
+    const score = prompt("Enter a score (1-5):");
+    if (!score) return;
+    const comment = prompt("Any comments? (optional)") || "";
+
+    const res = await fetch('/api/ratings', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        session_id: sessionId,
+        score: parseInt(score),
+        comment: comment
+      })
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      alert('Rated successfully!');
+      loadBookings();
+    } else {
+      alert('Error: ' + data.message);
+    }
+  }
+
+  // Initial load
+  loadBookings();
+</script>
+{% endblock %}
