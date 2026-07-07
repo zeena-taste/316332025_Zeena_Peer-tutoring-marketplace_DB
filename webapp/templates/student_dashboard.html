@@ -90,7 +90,7 @@
             <div class="list-item-title">Session with ${s.tutor_name}</div>
             <div class="list-item-meta">${s.slot_date} at ${s.start_time}</div>
           </div>
-          <button class="btn btn-ghost" onclick="rateSession(${s.session_id})">Rate</button>
+          <button class="btn btn-ghost" onclick="rateSession(${s.session_id}, '${s.tutor_name.replace(/'/g, "\\'")}')">Rate</button>
         </div>
       `).join('');
     }
@@ -99,7 +99,7 @@
   // 2. Search Tutors (Calls /api/tutors)
   document.getElementById('search-btn').addEventListener('click', async () => {
     const subjectId = document.getElementById('subject-select').value;
-    if (!subjectId) return alert("Please select a subject");
+    if (!subjectId) return showToast("Please select a subject first", "error");
 
     const res = await fetch(`/api/tutors?subject_id=${subjectId}`);
     const tutors = await res.json();
@@ -140,35 +140,34 @@
     });
     const data = await res.json();
     if (data.status === 'ok') {
-      alert('Booked successfully!');
+      showToast('Booked successfully!', 'success');
       loadBookings();
       document.getElementById('search-btn').click(); // Refresh tutor list
     } else {
-      alert('Error: ' + data.message);
+      showToast(data.message || 'Could not book that slot.', 'error');
     }
   }
 
-  // 4. Rate Session (Calls /api/ratings with JSON)
-  async function rateSession(sessionId) {
-    const score = prompt("Enter a score (1-5):");
-    if (!score) return;
-    const comment = prompt("Any comments? (optional)") || "";
+  // 4. Rate Session (Calls /api/ratings with JSON) — now via a star-rating modal
+  async function rateSession(sessionId, tutorName) {
+    const result = await askRating(tutorName ? `Session with ${tutorName}` : undefined);
+    if (!result) return; // cancelled
 
     const res = await fetch('/api/ratings', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
         session_id: sessionId,
-        score: parseInt(score),
-        comment: comment
+        score: result.score,
+        comment: result.comment
       })
     });
     const data = await res.json();
     if (data.status === 'ok') {
-      alert('Rated successfully!');
+      showToast('Thanks — your rating was submitted!', 'success');
       loadBookings();
     } else {
-      alert('Error: ' + data.message);
+      showToast(data.message || 'Could not submit rating.', 'error');
     }
   }
 

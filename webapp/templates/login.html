@@ -2,30 +2,26 @@
 {% block title %}UNILAK Tutor Board — Sign in{% endblock %}
 
 {% block content %}
-<link rel="stylesheet" href="./static/style.css" />
-<div class="board-texture"></div>
-
 <div class="login-wrap">
   <div class="login-board">
     <div class="banner">
       <div class="banner-row">
-        <div>
-          <div class="eyebrow">UNILAK Peer Tutoring Marketplace</div>
-          <h1>The Tutor Board</h1>
-        </div>
+        <div class="eyebrow">UNILAK Peer Tutoring Marketplace</div>
+        <h1>The Tutor Board</h1>
       </div>
     </div>
-    
-    <p class="tag" style="margin-top: 24px; color: var(--ink-soft); font-size: 15px;">
+
+    <p class="tag" style="margin-top: 12px; color: var(--text-secondary); font-size: 15px;">
       Pick who you are today — the board looks different depending on which side of the desk you're on.
     </p>
 
     <div class="role-cards">
       <!-- Student Role Card -->
       <div class="role-card student">
+        <div class="icon-badge">🎓</div>
         <h2>I need help</h2>
         <div class="sub">Search tutors, book a slot, rate a session.</div>
-        
+
         <form action="{{ url_for('login_student') }}" method="POST">
           <div class="field">
             <label for="student-select">Choose your name…</label>
@@ -36,15 +32,16 @@
               {% endfor %}
             </select>
           </div>
-          <button type="submit" class="primary">Enter as student</button>
+          <button type="submit" class="btn primary">Enter as student</button>
         </form>
       </div>
 
       <!-- Tutor Role Card -->
       <div class="role-card tutor">
+        <div class="icon-badge">📘</div>
         <h2>I'm offering help</h2>
         <div class="sub">Manage availability, track sessions, see your rating.</div>
-        
+
         <form action="{{ url_for('login_tutor') }}" method="POST">
           <div class="field">
             <label for="tutor-select">Choose your name…</label>
@@ -55,7 +52,7 @@
               {% endfor %}
             </select>
           </div>
-          <button type="submit" class="primary">Enter as tutor</button>
+          <button type="submit" class="btn primary">Enter as tutor</button>
         </form>
       </div>
     </div>

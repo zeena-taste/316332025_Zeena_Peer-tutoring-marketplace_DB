@@ -237,15 +237,23 @@ def tutor_dashboard():
 @app.route("/api/tutor/<int:tutor_id>/sessions")
 def api_tutor_sessions(tutor_id):
     """Upcoming confirmed sessions — same data tutoring_pkg.list_upcoming_sessions
-    prints via DBMS_OUTPUT in SQL*Plus, surfaced here as JSON for the UI."""
+    prints via DBMS_OUTPUT in SQL*Plus, surfaced here as JSON for the UI.
+
+    NOTE: complete_session() only ever updates SESSIONS.status (BOOKINGS.status
+    stays 'CONFIRMED' by design — that column tracks the booking itself, not
+    whether the session happened). So this list has to check SESSIONS.status
+    too, or a completed session keeps showing up here forever even though
+    marking it complete worked correctly on the database side.
+    """
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
         SELECT b.booking_id, a.slot_date, a.start_time, a.end_time, s.full_name AS student_name
         FROM bookings b
+        JOIN sessions se ON se.booking_id = b.booking_id
         JOIN availability_slots a ON b.slot_id = a.slot_id
         JOIN students s ON b.student_id = s.student_id
-        WHERE b.tutor_id = :1 AND b.status = 'CONFIRMED'
+        WHERE b.tutor_id = :1 AND b.status = 'CONFIRMED' AND se.status = 'SCHEDULED'
         ORDER BY a.slot_date, a.start_time
     """, [tutor_id])
     sessions = rows_to_dicts(cur, cur.fetchall())
@@ -274,6 +282,90 @@ def api_tutor_rating(tutor_id):
 
     conn.close()
     return jsonify({"avg_rating": avg_rating, "recent": recent})
+
+
+@app.route("/api/subjects")
+def api_subjects():
+    """All subjects in the catalog — used to populate the 'pick an existing
+    course' dropdown on the tutor dashboard."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT subject_id, subject_code, subject_name FROM subjects ORDER BY subject_name")
+    subjects = rows_to_dicts(cur, cur.fetchall())
+    conn.close()
+    return jsonify(subjects)
+
+
+@app.route("/api/tutor/<int:tutor_id>/subjects", methods=["GET"])
+def api_tutor_subjects(tutor_id):
+    """Subjects this specific tutor currently teaches."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT sub.subject_id, sub.subject_code, sub.subject_name
+        FROM tutor_subjects ts
+        JOIN subjects sub ON sub.subject_id = ts.subject_id
+        WHERE ts.tutor_id = :1
+        ORDER BY sub.subject_name
+    """, [tutor_id])
+    subjects = rows_to_dicts(cur, cur.fetchall())
+    conn.close()
+    return jsonify(subjects)
+
+
+@app.route("/api/tutor/<int:tutor_id>/subjects", methods=["POST"])
+def api_add_tutor_subject(tutor_id):
+    """Add a course to a tutor's teaching list.
+
+    Two request shapes:
+      { "subject_id": 5 }                                -> link to an EXISTING subject
+      { "subject_code": "CS201", "subject_name": "..." }  -> CREATE the subject, then link it
+
+    No new tables are needed for this — SUBJECTS and TUTOR_SUBJECTS already
+    exist in the schema; this just performs the two inserts your old SQL*Plus
+    workflow would have done by hand. See the note in plsql_objects.sql about
+    the optional unique constraints that make this endpoint safe to call twice.
+    """
+    data = request.json
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        if "subject_id" in data and data["subject_id"]:
+            subject_id = data["subject_id"]
+        else:
+            code = (data.get("subject_code") or "").strip()
+            name = (data.get("subject_name") or "").strip()
+            if not code or not name:
+                return jsonify({"status": "error", "message": "Course code and name are required."}), 400
+
+            # Reuse the subject if that code already exists, otherwise create it.
+            cur.execute("SELECT subject_id FROM subjects WHERE subject_code = :1", [code])
+            row = cur.fetchone()
+            if row:
+                subject_id = row[0]
+            else:
+                cur.execute("""
+                    INSERT INTO subjects (subject_code, subject_name) VALUES (:1, :2)
+                """, [code, name])
+                cur.execute("SELECT subject_id FROM subjects WHERE subject_code = :1", [code])
+                subject_id = cur.fetchone()[0]
+
+        # Avoid duplicate links if the tutor already teaches this subject.
+        cur.execute("""
+            SELECT 1 FROM tutor_subjects WHERE tutor_id = :1 AND subject_id = :2
+        """, [tutor_id, subject_id])
+        if not cur.fetchone():
+            cur.execute("""
+                INSERT INTO tutor_subjects (tutor_id, subject_id) VALUES (:1, :2)
+            """, [tutor_id, subject_id])
+
+        conn.commit()
+        return jsonify({"status": "ok", "subject_id": subject_id})
+    except oracledb.DatabaseError as e:
+        conn.rollback()
+        return jsonify({"status": "error", "message": db_error_message(e)}), 400
+    finally:
+        conn.close()
 
 
 @app.route("/api/availability", methods=["POST"])

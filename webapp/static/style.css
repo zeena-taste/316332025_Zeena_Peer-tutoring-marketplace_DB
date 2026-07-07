@@ -248,3 +248,222 @@ label {
   .dashboard-grid { grid-template-columns: 1fr; }
   .user-info span { display: none; } /* Hide name on small screens, keep avatar */
 }
+
+/* =========================================
+   8. LOGIN PAGE
+   ========================================= */
+.login-wrap {
+  min-height: calc(100vh - 65px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+  background:
+    radial-gradient(circle at 15% 20%, var(--accent-soft) 0%, transparent 45%),
+    radial-gradient(circle at 85% 80%, var(--accent-soft) 0%, transparent 40%),
+    var(--bg);
+}
+
+.login-board {
+  width: 100%;
+  max-width: 880px;
+}
+
+.banner { text-align: center; margin-bottom: 8px; }
+.banner-row { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.eyebrow {
+  font-size: 13px; font-weight: 600; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--accent);
+}
+.login-board h1 { font-size: 34px; letter-spacing: -0.02em; }
+.login-board .tag { text-align: center; max-width: 480px; margin-left: auto; margin-right: auto; }
+
+.role-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 32px; }
+
+.role-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  box-shadow: var(--shadow-md);
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+.role-card::before {
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+  background: var(--accent);
+}
+.role-card.tutor::before { background: var(--success); }
+.role-card:hover { transform: translateY(-2px); border-color: var(--accent); }
+
+.role-card .icon-badge {
+  width: 44px; height: 44px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent-soft); color: var(--accent); font-size: 20px; margin-bottom: 14px;
+}
+.role-card.tutor .icon-badge { background: rgba(16,185,129,0.12); color: var(--success); }
+
+.role-card h2 { font-size: 19px; margin-bottom: 4px; }
+.role-card .sub { font-size: 13.5px; color: var(--text-secondary); margin-bottom: 20px; }
+.role-card .field { margin-bottom: 16px; }
+.role-card .field label { font-size: 13px; font-weight: 500; color: var(--text-secondary); margin-bottom: 6px; }
+.role-card button.primary { width: 100%; }
+
+.role-card.student button.primary { background: var(--accent); color: #fff; }
+.role-card.student button.primary:hover { background: var(--accent-hover); }
+.role-card.tutor button.primary { background: var(--success); color: #fff; }
+.role-card.tutor button.primary:hover { filter: brightness(0.92); }
+
+@media (max-width: 700px) {
+  .role-cards { grid-template-columns: 1fr; }
+}
+
+/* =========================================
+   9. TOASTS (replace browser alert())
+   ========================================= */
+#toast-container {
+  position: fixed; top: 20px; right: 20px; z-index: 1000;
+  display: flex; flex-direction: column; gap: 10px; max-width: 360px;
+}
+.toast {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  padding: 14px 16px;
+  font-size: 14px;
+  color: var(--text-primary);
+  display: flex; align-items: flex-start; gap: 10px;
+  animation: toast-in 0.25s ease;
+}
+.toast.success { border-left-color: var(--success); }
+.toast.error { border-left-color: var(--danger); }
+.toast .toast-icon { font-size: 16px; line-height: 1; margin-top: 1px; }
+.toast .toast-msg { flex: 1; }
+.toast .toast-close {
+  background: none; border: none; cursor: pointer;
+  color: var(--text-secondary); font-size: 14px; padding: 0; line-height: 1;
+}
+.toast.leaving { animation: toast-out 0.2s ease forwards; }
+@keyframes toast-in { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes toast-out { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(24px); } }
+
+/* =========================================
+   10. MODAL (replace browser prompt()/confirm())
+   ========================================= */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 999; padding: 20px;
+  animation: fade-in 0.15s ease;
+}
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+.modal-box {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+  width: 100%; max-width: 420px; padding: 24px;
+  animation: modal-in 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.modal-box h3 { font-size: 17px; margin-bottom: 4px; }
+.modal-box .modal-sub { font-size: 13.5px; color: var(--text-secondary); margin-bottom: 18px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+
+/* Star rating picker inside modal */
+.star-picker { display: flex; gap: 6px; margin-bottom: 16px; }
+.star-picker button {
+  background: none; border: none; cursor: pointer;
+  font-size: 30px; line-height: 1; padding: 2px; color: var(--border);
+  transition: transform 0.1s ease, color 0.1s ease;
+}
+.star-picker button.filled { color: #F5B301; }
+.star-picker button:hover { transform: scale(1.12); }
+
+/* =========================================
+   11. CLOCK TIME PICKER
+   ========================================= */
+.time-field { position: relative; }
+.time-display-btn {
+  width: 100%; text-align: left; font-family: inherit; font-size: 14px;
+  padding: 10px 14px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); color: var(--text-primary); cursor: pointer;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.time-display-btn:hover { border-color: var(--accent); }
+.time-display-btn .placeholder { color: var(--text-secondary); }
+.time-display-btn .clock-emoji { opacity: 0.6; font-size: 13px; }
+
+.clock-popover {
+  position: absolute; top: calc(100% + 8px); left: 0; z-index: 60;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-md);
+  padding: 18px; width: 260px;
+}
+.clock-popover-header {
+  display: flex; align-items: center; justify-content: center;
+  gap: 6px; margin-bottom: 14px; font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.clock-popover-header .seg { padding: 2px 6px; border-radius: 6px; cursor: pointer; }
+.clock-popover-header .seg.active { background: var(--accent-soft); color: var(--accent); }
+.clock-popover-header .colon { opacity: 0.5; }
+
+.ampm-toggle { display: flex; flex-direction: column; gap: 2px; margin-left: 8px; }
+.ampm-toggle button {
+  font-size: 11px; font-weight: 600; padding: 2px 6px;
+  border: 1px solid var(--border); background: var(--surface-hover);
+  color: var(--text-secondary); cursor: pointer; border-radius: 5px;
+}
+.ampm-toggle button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+.clock-face-wrap { display: flex; align-items: center; justify-content: center; }
+.clock-face { touch-action: none; user-select: none; }
+.clock-face .tick { fill: var(--text-secondary); font-size: 13px; font-weight: 500; }
+.clock-face .tick-minor { fill: var(--text-secondary); opacity: 0.55; font-size: 10px; }
+.clock-face .dial { fill: var(--surface-hover); }
+.clock-face .center-dot { fill: var(--accent); }
+.clock-face .hand { stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; }
+.clock-face .hand-knob { fill: var(--accent); }
+.clock-face .tick.selected, .clock-face .tick-minor.selected { fill: #fff; }
+.clock-face .selected-bg { fill: var(--accent); }
+
+.clock-popover-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+.clock-popover-footer button { font-size: 13px; padding: 7px 14px; }
+
+/* =========================================
+   12. COURSE / SUBJECT MANAGEMENT (tutor)
+   ========================================= */
+.subject-chip-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.subject-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--accent-soft); color: var(--accent);
+  border-radius: 20px; padding: 6px 12px; font-size: 13px; font-weight: 500;
+}
+.subject-chip button {
+  background: none; border: none; color: var(--accent); cursor: pointer;
+  font-size: 13px; line-height: 1; padding: 0; opacity: 0.7;
+}
+.subject-chip button:hover { opacity: 1; }
+
+.add-course-toggle { font-size: 13px; }
+.add-course-form {
+  margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border);
+  display: flex; flex-direction: column; gap: 12px;
+}
+.segmented { display: flex; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; margin-bottom: 4px; }
+.segmented button {
+  flex: 1; padding: 8px; font-size: 13px; font-weight: 500; border: none; background: var(--surface);
+  color: var(--text-secondary); cursor: pointer;
+}
+.segmented button.active { background: var(--accent); color: #fff; }
+
+/* Chart cards on tutor dashboard */
+.chart-card canvas { max-height: 220px; }

@@ -19,15 +19,14 @@
         </div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
           <div>
-            <label for="start">Starts</label>
-            <input type="time" id="start" required>
+            <label for="start-time-field">Starts</label>
+            <div id="start-time-field" data-placeholder="Start time"></div>
           </div>
           <div>
-            <label for="end">Ends</label>
-            <input type="time" id="end" required>
+            <label for="end-time-field">Ends</label>
+            <div id="end-time-field" data-placeholder="End time"></div>
           </div>
         </div>
-        <!-- Changed to type="button" so it doesn't submit a form -->
         <button type="button" id="add-slot-btn" class="btn btn-primary">Add Slot</button>
       </div>
     </div>
@@ -44,6 +43,44 @@
     </div>
   </div>
 
+  <!-- Courses Card -->
+  <div class="card" style="margin-top: 24px;">
+    <div class="card-header">
+      <h2 class="card-title">Courses You Teach</h2>
+      <button type="button" class="btn btn-ghost add-course-toggle" id="toggle-add-course">+ Add a course</button>
+    </div>
+    <div class="subject-chip-list" id="subject-chip-list">
+      <p style="color: var(--text-secondary); font-size: 14px;">Loading...</p>
+    </div>
+
+    <div class="add-course-form" id="add-course-form" style="display: none;">
+      <div class="segmented" id="course-mode-toggle">
+        <button type="button" class="active" data-mode="existing">Pick existing course</button>
+        <button type="button" data-mode="new">Create a new course</button>
+      </div>
+
+      <div id="mode-existing">
+        <label for="existing-subject-select">Course</label>
+        <select id="existing-subject-select">
+          <option value="" disabled selected>Select a course…</option>
+        </select>
+      </div>
+
+      <div id="mode-new" style="display: none; gap: 12px; flex-direction: column;">
+        <div>
+          <label for="new-subject-code">Course code</label>
+          <input type="text" id="new-subject-code" placeholder="e.g. CS201" maxlength="20">
+        </div>
+        <div>
+          <label for="new-subject-name">Course name</label>
+          <input type="text" id="new-subject-name" placeholder="e.g. Data Structures" maxlength="100">
+        </div>
+      </div>
+
+      <button type="button" class="btn btn-primary" id="submit-course-btn">Add to my courses</button>
+    </div>
+  </div>
+
   <!-- Insights Section -->
   <h2 style="font-size: 18px; margin: 32px 0 16px;">Marketplace Insights</h2>
   <div class="dashboard-grid">
@@ -52,21 +89,39 @@
       <div id="tutor-rating-display" style="font-size: 24px; font-weight: 700; color: var(--accent);">-</div>
       <div id="recent-reviews" style="margin-top: 12px; font-size: 13px; color: var(--text-secondary);"></div>
     </div>
-    <div class="card">
-      <h3 class="card-title" style="margin-bottom: 16px;">Platform Stats</h3>
-      <p style="color: var(--text-secondary); font-size: 14px;">Chart placeholders</p>
+  </div>
+  <div class="dashboard-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
+    <div class="card chart-card">
+      <h3 class="card-title" style="margin-bottom: 16px;">Bookings by Subject</h3>
+      <canvas id="chartSubject"></canvas>
+    </div>
+    <div class="card chart-card">
+      <h3 class="card-title" style="margin-bottom: 16px;">Tutor Ratings, Sorted</h3>
+      <canvas id="chartRatings"></canvas>
+    </div>
+    <div class="card chart-card">
+      <h3 class="card-title" style="margin-bottom: 16px;">Session Outcomes</h3>
+      <canvas id="chartOutcomes"></canvas>
     </div>
   </div>
 </main>
 
 <script>
   const tutorId = {{ tutor_id }};
+  const NAVY = '#1B2A4A', GOLD = '#C9A227';
+  const PALETTE = ['#2563EB', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4', '#EC4899'];
 
-  // 1. Load Sessions (Calls /api/tutor/<id>/sessions)
+  // ---- Time pickers (analog clock, see base.html) ----
+  initTimePicker(document.getElementById('start-time-field'));
+  initTimePicker(document.getElementById('end-time-field'));
+
+  // 1. Load Sessions (Calls /api/tutor/<id>/sessions) — now with a
+  //    "Mark completed" action, since that's the only thing that lets a
+  //    student rate the session afterwards.
   async function loadSessions() {
     const res = await fetch(`/api/tutor/${tutorId}/sessions`);
     const sessions = await res.json();
-    
+
     const list = document.getElementById('sessions-list');
     const count = document.getElementById('confirmed-count');
     count.textContent = sessions.length;
@@ -75,23 +130,61 @@
       list.innerHTML = '<p style="color: var(--text-secondary); font-size: 14px;">No confirmed sessions yet.</p>';
     } else {
       list.innerHTML = sessions.map(s => `
-        <div class="list-item">
+        <div class="list-item" style="align-items: flex-start;">
           <div>
             <div class="list-item-title">${s.student_name}</div>
             <div class="list-item-meta">${s.slot_date} • ${s.start_time} - ${s.end_time}</div>
           </div>
+          <button class="btn btn-ghost" onclick="completeSession(${s.booking_id})">Mark completed</button>
         </div>
       `).join('');
     }
+  }
+
+  async function completeSession(bookingId) {
+    const notes = await askSessionNotes();
+    if (notes === null) return; // cancelled
+
+    const res = await fetch('/api/sessions/complete', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ booking_id: bookingId, notes })
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      showToast('Session marked complete — the student can now rate it.', 'success');
+      loadSessions();
+    } else {
+      showToast(data.message || 'Could not complete session.', 'error');
+    }
+  }
+
+  // Small modal for capturing optional session notes before marking complete.
+  function askSessionNotes() {
+    const html = `
+      <h3>Mark session complete</h3>
+      <p class="modal-sub">Add any notes about how the session went (optional).</p>
+      <textarea id="session-notes" rows="3" placeholder="e.g. Covered chapters 4-5, student should review practice problems…"></textarea>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="notes-cancel">Cancel</button>
+        <button class="btn btn-primary" id="notes-confirm">Mark completed</button>
+      </div>
+    `;
+    const promise = openModal(html);
+    document.getElementById('notes-cancel').addEventListener('click', () => resolveModal(null));
+    document.getElementById('notes-confirm').addEventListener('click', () => {
+      resolveModal(document.getElementById('session-notes').value || '');
+    });
+    return promise;
   }
 
   // 2. Load Rating (Calls /api/tutor/<id>/rating)
   async function loadRating() {
     const res = await fetch(`/api/tutor/${tutorId}/rating`);
     const data = await res.json();
-    
+
     document.getElementById('tutor-rating-display').textContent = `★ ${data.avg_rating || 'New'}`;
-    
+
     const reviews = document.getElementById('recent-reviews');
     if (data.recent && data.recent.length > 0) {
       reviews.innerHTML = data.recent.map(r => `
@@ -107,14 +200,15 @@
   // 3. Add Availability (Calls /api/availability with JSON)
   document.getElementById('add-slot-btn').addEventListener('click', async () => {
     const date = document.getElementById('date').value;
-    const start = document.getElementById('start').value;
-    const end = document.getElementById('end').value;
+    const start = document.getElementById('start-time-field').getValue();
+    const end = document.getElementById('end-time-field').getValue();
 
-    if (!date || !start || !end) return alert("Please fill all fields");
+    if (!date || !start || !end) return showToast('Please fill in date, start and end time.', 'error');
+    if (start >= end) return showToast('End time must be after start time.', 'error');
 
     const res = await fetch('/api/availability', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'}, // FIXED: Sends JSON instead of form data
+      headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
         tutor_id: tutorId,
         slot_date: date,
@@ -124,17 +218,118 @@
     });
     const data = await res.json();
     if (data.status === 'ok') {
-      alert('Slot added!');
+      showToast('Slot added — students can now book it.', 'success');
       document.getElementById('date').value = '';
-      document.getElementById('start').value = '';
-      document.getElementById('end').value = '';
     } else {
-      alert('Error: ' + data.message);
+      showToast(data.message || 'Could not add slot.', 'error');
     }
   });
+
+  // ---- Courses You Teach ----
+  async function loadMyCourses() {
+    const res = await fetch(`/api/tutor/${tutorId}/subjects`);
+    const subjects = await res.json();
+    const el = document.getElementById('subject-chip-list');
+    el.innerHTML = subjects.length === 0
+      ? '<p style="color: var(--text-secondary); font-size: 14px;">You haven\'t added any courses yet.</p>'
+      : subjects.map(s => `<span class="subject-chip">${s.subject_name} (${s.subject_code})</span>`).join('');
+  }
+
+  async function loadAllSubjectsIntoSelect() {
+    const res = await fetch('/api/subjects');
+    const subjects = await res.json();
+    const select = document.getElementById('existing-subject-select');
+    select.innerHTML = '<option value="" disabled selected>Select a course…</option>' +
+      subjects.map(s => `<option value="${s.subject_id}">${s.subject_name} (${s.subject_code})</option>`).join('');
+  }
+
+  document.getElementById('toggle-add-course').addEventListener('click', () => {
+    const form = document.getElementById('add-course-form');
+    const opening = form.style.display === 'none';
+    form.style.display = opening ? 'flex' : 'none';
+    if (opening) loadAllSubjectsIntoSelect();
+  });
+
+  document.getElementById('course-mode-toggle').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-mode]');
+    if (!btn) return;
+    document.querySelectorAll('#course-mode-toggle button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const isNew = btn.dataset.mode === 'new';
+    document.getElementById('mode-existing').style.display = isNew ? 'none' : 'block';
+    document.getElementById('mode-new').style.display = isNew ? 'flex' : 'none';
+  });
+
+  document.getElementById('submit-course-btn').addEventListener('click', async () => {
+    const isNewMode = document.querySelector('#course-mode-toggle button[data-mode="new"]').classList.contains('active');
+    let payload;
+    if (isNewMode) {
+      const code = document.getElementById('new-subject-code').value.trim();
+      const name = document.getElementById('new-subject-name').value.trim();
+      if (!code || !name) return showToast('Enter both a course code and a course name.', 'error');
+      payload = { subject_code: code, subject_name: name };
+    } else {
+      const subjectId = document.getElementById('existing-subject-select').value;
+      if (!subjectId) return showToast('Pick a course from the list.', 'error');
+      payload = { subject_id: Number(subjectId) };
+    }
+
+    const res = await fetch(`/api/tutor/${tutorId}/subjects`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      showToast('Course added to your profile!', 'success');
+      document.getElementById('new-subject-code').value = '';
+      document.getElementById('new-subject-name').value = '';
+      document.getElementById('add-course-form').style.display = 'none';
+      loadMyCourses();
+    } else {
+      showToast(data.message || 'Could not add that course.', 'error');
+    }
+  });
+
+  // ---- Marketplace insights charts ----
+  async function loadCharts() {
+    const [bySubject, byRating, byOutcome] = await Promise.all([
+      fetch('/api/dashboard/bookings-by-subject').then(r => r.json()),
+      fetch('/api/dashboard/tutor-ratings').then(r => r.json()),
+      fetch('/api/dashboard/session-outcomes').then(r => r.json())
+    ]);
+
+    new Chart(document.getElementById('chartSubject'), {
+      type: 'bar',
+      data: {
+        labels: bySubject.map(r => r.subject_name),
+        datasets: [{ label: 'Bookings', data: bySubject.map(r => r.booking_count), backgroundColor: NAVY }]
+      },
+      options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+    });
+
+    new Chart(document.getElementById('chartRatings'), {
+      type: 'bar',
+      data: {
+        labels: byRating.map(r => r.tutor_name),
+        datasets: [{ label: 'Avg rating', data: byRating.map(r => r.avg_rating), backgroundColor: GOLD }]
+      },
+      options: { indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { min: 0, max: 5 } } }
+    });
+
+    new Chart(document.getElementById('chartOutcomes'), {
+      type: 'doughnut',
+      data: {
+        labels: byOutcome.map(r => r.outcome),
+        datasets: [{ data: byOutcome.map(r => r.outcome_count), backgroundColor: PALETTE }]
+      }
+    });
+  }
 
   // Initial load
   loadSessions();
   loadRating();
+  loadMyCourses();
+  loadCharts();
 </script>
 {% endblock %}

@@ -6,6 +6,7 @@
   <title>{% block title %}Dashboard{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
   <header class="app-header">
@@ -46,7 +47,265 @@
     </div>
   </header>
 
-  {% block content %}{% endblock %}
+  <!-- Toast + modal mount points, shared by every page -->
+  <div id="toast-container"></div>
+  <div id="modal-root"></div>
+
+  <!-- =========================================================
+       SHARED UI HELPERS: toast(), modal(), askRating(), clock time picker
+       Defined before the page content below on purpose — each page's own
+       <script> (further down this file) calls these functions as soon
+       as it runs, so they must already exist by that point.
+       ========================================================= -->
+  <script>
+    // ---------- TOASTS (replaces alert()) ----------
+    function showToast(message, type = 'success', timeout = 4200) {
+      const container = document.getElementById('toast-container');
+      const el = document.createElement('div');
+      el.className = `toast ${type}`;
+      const icon = type === 'error' ? '⚠️' : type === 'success' ? '✅' : 'ℹ️';
+      el.innerHTML = `
+        <span class="toast-icon">${icon}</span>
+        <span class="toast-msg"></span>
+        <button class="toast-close" aria-label="Dismiss">✕</button>
+      `;
+      el.querySelector('.toast-msg').textContent = message; // textContent: no HTML injection
+      container.appendChild(el);
+
+      const remove = () => {
+        el.classList.add('leaving');
+        setTimeout(() => el.remove(), 200);
+      };
+      el.querySelector('.toast-close').addEventListener('click', remove);
+      if (timeout) setTimeout(remove, timeout);
+      return el;
+    }
+
+    // ---------- GENERIC MODAL (replaces prompt()/confirm()) ----------
+    // Renders `innerHTML` inside a modal box and resolves the returned
+    // promise with whatever the caller passes to `resolveModal(value)`.
+    let _modalResolve = null;
+    function openModal(innerHTML) {
+      const root = document.getElementById('modal-root');
+      root.innerHTML = `
+        <div class="modal-overlay" id="modal-overlay">
+          <div class="modal-box">${innerHTML}</div>
+        </div>
+      `;
+      const overlay = document.getElementById('modal-overlay');
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) resolveModal(null);
+      });
+      return new Promise((resolve) => { _modalResolve = resolve; });
+    }
+    function resolveModal(value) {
+      const root = document.getElementById('modal-root');
+      root.innerHTML = '';
+      if (_modalResolve) { _modalResolve(value); _modalResolve = null; }
+    }
+
+    // ---------- STAR-RATING MODAL (replaces the two prompt() calls) ----------
+    // Usage: const result = await askRating('Rate your session with Jane');
+    // result is null if cancelled, otherwise { score, comment }.
+    function askRating(subtitle) {
+      let score = 0;
+      const html = `
+        <h3>Rate this session</h3>
+        <p class="modal-sub">${subtitle || 'How did it go?'}</p>
+        <div class="star-picker" id="star-picker">
+          ${[1,2,3,4,5].map(n => `<button type="button" data-n="${n}" aria-label="${n} star">★</button>`).join('')}
+        </div>
+        <label for="rating-comment">Comment (optional)</label>
+        <textarea id="rating-comment" rows="3" placeholder="Anything you'd like to add…" style="margin-top:6px;"></textarea>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" id="rating-cancel">Cancel</button>
+          <button class="btn btn-primary" id="rating-submit">Submit rating</button>
+        </div>
+      `;
+      const promise = openModal(html);
+
+      const picker = document.getElementById('star-picker');
+      const paintStars = () => {
+        [...picker.children].forEach(btn => {
+          btn.classList.toggle('filled', Number(btn.dataset.n) <= score);
+        });
+      };
+      picker.addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-n]');
+        if (!btn) return;
+        score = Number(btn.dataset.n);
+        paintStars();
+      });
+      document.getElementById('rating-cancel').addEventListener('click', () => resolveModal(null));
+      document.getElementById('rating-submit').addEventListener('click', () => {
+        if (score < 1) { showToast('Pick a star rating first.', 'error'); return; }
+        const comment = document.getElementById('rating-comment').value;
+        resolveModal({ score, comment });
+      });
+
+      return promise;
+    }
+
+    // ---------- ANALOG CLOCK TIME PICKER ----------
+    // Turns a <div class="time-field" data-placeholder="Start time"></div>
+    // into a button that opens a clock-face popover, and keeps
+    // el.dataset.value in 24h "HH:MM" format (same format a native
+    // <input type="time"> gives you), firing a "timechange" event on `el`.
+    function initTimePicker(el, initialValue) {
+      const placeholder = el.dataset.placeholder || 'Select time';
+      el.classList.add('time-field');
+      el.innerHTML = `<button type="button" class="time-display-btn">
+          <span class="display-text placeholder">${placeholder}</span>
+          <span class="clock-emoji">🕒</span>
+        </button>`;
+      const btn = el.querySelector('.time-display-btn');
+      const label = el.querySelector('.display-text');
+
+      let hour24 = 9, minute = 0; // sensible default: 9:00 AM
+      if (initialValue) {
+        const [h, m] = initialValue.split(':').map(Number);
+        hour24 = h; minute = m;
+      }
+
+      function to12(h24) {
+        const mer = h24 >= 12 ? 'PM' : 'AM';
+        let h12 = h24 % 12; if (h12 === 0) h12 = 12;
+        return { h12, mer };
+      }
+      function setValue(h24, m) {
+        hour24 = h24; minute = m;
+        const hh = String(h24).padStart(2, '0');
+        const mm = String(m).padStart(2, '0');
+        el.dataset.value = `${hh}:${mm}`;
+        const { h12, mer } = to12(h24);
+        label.textContent = `${h12}:${mm} ${mer}`;
+        label.classList.remove('placeholder');
+        el.dispatchEvent(new CustomEvent('timechange', { detail: el.dataset.value }));
+      }
+      if (initialValue) setValue(hour24, minute);
+
+      function polarPoint(cx, cy, r, angleDeg) {
+        const rad = (angleDeg - 90) * Math.PI / 180;
+        return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+      }
+
+      function renderFace(mode, h12, m, mer) {
+        const size = 220, cx = size / 2, cy = size / 2, rOuter = 92, rInner = 60;
+        let ticks = '';
+        if (mode === 'hour') {
+          for (let n = 1; n <= 12; n++) {
+            const { x, y } = polarPoint(cx, cy, rOuter, n * 30);
+            const isSel = n === h12;
+            ticks += isSel ? `<circle class="selected-bg" cx="${x}" cy="${y}" r="15"></circle>` : '';
+            ticks += `<text class="tick ${isSel ? 'selected' : ''}" x="${x}" y="${y+5}" text-anchor="middle" data-val="${n}">${n}</text>`;
+          }
+        } else {
+          for (let n = 0; n < 60; n += 5) {
+            const { x, y } = polarPoint(cx, cy, rOuter, n * 6);
+            const isSel = n === m;
+            ticks += isSel ? `<circle class="selected-bg" cx="${x}" cy="${y}" r="15"></circle>` : '';
+            ticks += `<text class="tick ${isSel ? 'selected' : ''}" x="${x}" y="${y+5}" text-anchor="middle" data-val="${n}">${String(n).padStart(2,'0')}</text>`;
+          }
+        }
+        const handAngle = mode === 'hour' ? (h12 % 12) * 30 : m * 6;
+        const handLen = mode === 'hour' ? rOuter - 30 : rOuter - 14;
+        const tip = polarPoint(cx, cy, handLen, handAngle);
+        return `
+          <svg class="clock-face" viewBox="0 0 ${size} ${size}" width="220" height="220">
+            <circle class="dial" cx="${cx}" cy="${cy}" r="${rOuter + 20}"></circle>
+            <line class="hand" x1="${cx}" y1="${cy}" x2="${tip.x}" y2="${tip.y}"></line>
+            <circle class="center-dot" cx="${cx}" cy="${cy}" r="4"></circle>
+            ${ticks}
+          </svg>`;
+      }
+
+      let popover = null;
+      let mode = 'hour';
+
+      function closePopover() {
+        if (popover) { popover.remove(); popover = null; }
+        document.removeEventListener('click', outsideClickHandler, true);
+      }
+      function outsideClickHandler(e) {
+        if (popover && !popover.contains(e.target) && e.target !== btn) closePopover();
+      }
+
+      function redraw() {
+        const { h12, mer } = to12(hour24);
+        popover.querySelector('.clock-face-wrap').innerHTML = renderFace(mode, h12, minute, mer);
+        popover.querySelector('[data-seg="hour"]').textContent = String(h12).padStart(2, '0');
+        popover.querySelector('[data-seg="hour"]').classList.toggle('active', mode === 'hour');
+        popover.querySelector('[data-seg="minute"]').textContent = String(minute).padStart(2, '0');
+        popover.querySelector('[data-seg="minute"]').classList.toggle('active', mode === 'minute');
+        popover.querySelectorAll('.ampm-toggle button').forEach(b => {
+          b.classList.toggle('active', b.dataset.mer === mer);
+        });
+
+        popover.querySelector('.clock-face').addEventListener('click', (e) => {
+          const target = e.target.closest('[data-val]');
+          if (!target) return;
+          const val = Number(target.dataset.val);
+          if (mode === 'hour') {
+            let h24 = val % 12 + (to12(hour24).mer === 'PM' ? 12 : 0);
+            hour24 = h24;
+            mode = 'minute';
+          } else {
+            minute = val;
+          }
+          redraw();
+        });
+      }
+
+      function openPopover() {
+        if (popover) return;
+        mode = 'hour';
+        popover = document.createElement('div');
+        popover.className = 'clock-popover';
+        popover.innerHTML = `
+          <div class="clock-popover-header">
+            <span class="seg" data-seg="hour"></span><span class="colon">:</span><span class="seg" data-seg="minute"></span>
+            <div class="ampm-toggle">
+              <button type="button" data-mer="AM"></button>
+              <button type="button" data-mer="PM"></button>
+            </div>
+          </div>
+          <div class="clock-face-wrap"></div>
+          <div class="clock-popover-footer">
+            <button type="button" class="btn btn-ghost" data-action="cancel">Cancel</button>
+            <button type="button" class="btn btn-primary" data-action="done">Done</button>
+          </div>
+        `;
+        popover.querySelector('[data-mer="AM"]').textContent = 'AM';
+        popover.querySelector('[data-mer="PM"]').textContent = 'PM';
+        el.appendChild(popover);
+        redraw();
+
+        popover.querySelector('[data-seg="hour"]').addEventListener('click', () => { mode = 'hour'; redraw(); });
+        popover.querySelector('[data-seg="minute"]').addEventListener('click', () => { mode = 'minute'; redraw(); });
+        popover.querySelectorAll('.ampm-toggle button').forEach(b => {
+          b.addEventListener('click', () => {
+            const wantPM = b.dataset.mer === 'PM';
+            const { h12 } = to12(hour24);
+            hour24 = wantPM ? (h12 % 12) + 12 : (h12 % 12);
+            redraw();
+          });
+        });
+        popover.querySelector('[data-action="cancel"]').addEventListener('click', closePopover);
+        popover.querySelector('[data-action="done"]').addEventListener('click', () => {
+          setValue(hour24, minute);
+          closePopover();
+        });
+
+        setTimeout(() => document.addEventListener('click', outsideClickHandler, true), 0);
+      }
+
+      btn.addEventListener('click', openPopover);
+
+      // Small API so pages can read/reset the value programmatically.
+      el.getValue = () => el.dataset.value || null;
+      el.setValue = (v) => { const [h,m] = v.split(':').map(Number); setValue(h, m); };
+    }
+  </script>
 
   <!-- Theme Toggle Script -->
   <script>
@@ -63,5 +322,7 @@
       });
     }
   </script>
+
+  {% block content %}{% endblock %}
 </body>
 </html>
