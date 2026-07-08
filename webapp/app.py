@@ -452,5 +452,51 @@ def dashboard_session_outcomes():
     return jsonify(data)
 
 
+# ---------------------------------------------------------------------------
+# AUDIT LOG VIEWER — lets you check trg_audit_bookings visually instead of
+# querying AUDIT_LOG in SQL*Plus every time. Read-only, no writes happen here.
+# ---------------------------------------------------------------------------
+
+@app.route("/audit-log")
+def audit_log_page():
+    return render_template("audit_log.html")
+
+
+@app.route("/api/audit-log")
+def api_audit_log():
+    """Returns AUDIT_LOG rows, most recent first, with optional filters.
+    Query params: table_name, action, limit (default 100)."""
+    table_name = request.args.get("table_name")
+    action = request.args.get("action")
+    limit = request.args.get("limit", "100")
+
+    conn = get_conn()
+    cur = conn.cursor()
+
+    where_clauses = []
+    params = {}
+    if table_name:
+        where_clauses.append("table_name = :table_name")
+        params["table_name"] = table_name
+    if action:
+        where_clauses.append("action = :action")
+        params["action"] = action
+
+    where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+
+    cur.execute(f"""
+        SELECT log_id, table_name, action, record_id, old_value, new_value,
+               changed_by, changed_at
+        FROM audit_log
+        {where_sql}
+        ORDER BY changed_at DESC, log_id DESC
+        FETCH FIRST :row_limit ROWS ONLY
+    """, {**params, "row_limit": int(limit)})
+
+    data = rows_to_dicts(cur, cur.fetchall())
+    conn.close()
+    return jsonify(data)
+
+
 if __name__ == "__main__":
     app.run(debug=True)
